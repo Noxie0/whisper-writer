@@ -30,7 +30,7 @@ The core transcription engine is unchanged. Everything around it was rewritten:
 
 ## Requirements
 
-- **Python 3.11** — [python.org/downloads](https://www.python.org/downloads/)
+- **Python 3.11** (exactly — 3.12+ is untested, 3.14 will fail) — [python.org/downloads](https://www.python.org/downloads/)
 - **Git** — [git-scm.com/downloads](https://git-scm.com/downloads)
 - **Microsoft Visual C++ 14.0 or greater** — required by several dependencies. Get it via [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (install the "Desktop development with C++" workload)
 - **Windows** (this fork targets Windows; the original supports Linux/macOS too)
