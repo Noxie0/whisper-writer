@@ -146,17 +146,33 @@ class ResultThread(QThread):
         frame_size = int(self.sample_rate * (frame_duration_ms / 1000.0))
         silence_duration_ms = recording_options.get('silence_duration') or 900
         silence_frames = int(silence_duration_ms / frame_duration_ms)
+        min_duration_ms = recording_options.get('min_duration') or 100
 
-        # 150ms delay before starting VAD to avoid mistaking the sound of key pressing for voice
         initial_frames_to_skip = int(0.15 * self.sample_rate / frame_size)
 
-        # Create VAD only for recording modes that use it
         recording_mode = recording_options.get('recording_mode') or 'continuous'
+        sound_device_name = recording_options.get('sound_device') or '(system default)'
+        device = _resolve_device(recording_options.get('sound_device'))
+
+        ConfigManager.console_print(
+            f'Recording config: mode={recording_mode!r}, sample_rate={self.sample_rate} Hz, '
+            f'frame_size={frame_size} samples ({frame_duration_ms} ms), '
+            f'silence_timeout={silence_duration_ms} ms ({silence_frames} frames), '
+            f'min_duration={min_duration_ms} ms, '
+            f'initial_skip={initial_frames_to_skip} frames'
+        )
+        ConfigManager.console_print(
+            f'Audio device: {sound_device_name!r} → resolved index={device!r}'
+        )
+
         vad = None
         if recording_mode in ('voice_activity_detection', 'continuous'):
             vad = webrtcvad.Vad(2)  # VAD aggressiveness: 0 to 3, 3 being the most aggressive
             speech_detected = False
             silent_frame_count = 0
+            ConfigManager.console_print('VAD enabled (aggressiveness=2).')
+        else:
+            ConfigManager.console_print('VAD disabled for this recording mode.')
 
         audio_buffer = deque(maxlen=frame_size)
         recording = []
@@ -172,10 +188,10 @@ class ResultThread(QThread):
             self._last_level = float(np.clip(log_level, 0.0, 1.0))
             data_ready.set()
 
-        device = _resolve_device(recording_options.get('sound_device'))
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype='int16',
                             blocksize=frame_size, device=device,
                             callback=audio_callback):
+            ConfigManager.console_print('Audio stream opened. Listening...')
             while self.is_running and self.is_recording:
                 data_ready.wait()
                 data_ready.clear()
@@ -209,9 +225,10 @@ class ResultThread(QThread):
         audio_data = np.array(recording, dtype=np.int16)
         duration = len(audio_data) / self.sample_rate
 
-        ConfigManager.console_print(f'Recording finished. Size: {audio_data.size} samples, Duration: {duration:.2f} seconds')
-
-        min_duration_ms = recording_options.get('min_duration') or 100
+        ConfigManager.console_print(
+            f'Recording finished. Samples: {audio_data.size}, '
+            f'Duration: {duration:.3f}s, min_duration: {min_duration_ms} ms'
+        )
 
         if (duration * 1000) < min_duration_ms:
             ConfigManager.console_print(f'Discarded due to being too short.')

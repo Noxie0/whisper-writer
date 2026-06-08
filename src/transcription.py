@@ -49,33 +49,53 @@ def _download_without_symlinks(model_name):
 
 def create_local_model():
     ConfigManager.console_print('Creating local model...')
+
+    try:
+        import ctranslate2
+        ConfigManager.console_print(f'ctranslate2 version: {ctranslate2.__version__}')
+    except Exception:
+        pass
+    try:
+        import faster_whisper
+        ConfigManager.console_print(f'faster_whisper version: {faster_whisper.__version__}')
+    except Exception:
+        pass
+
     local_model_options = ConfigManager.get_config_section('model_options')['local']
     compute_type = local_model_options['compute_type']
     model_path = local_model_options.get('model_path') or ''
     model_name = local_model_options['model']
     device = local_model_options['device']
 
-    ConfigManager.console_print(f'Device: {device}, compute_type: {compute_type}')
+    ConfigManager.console_print(
+        f'Model options: name={model_name!r}, device={device!r}, '
+        f'compute_type={compute_type!r}, model_path={model_path!r}'
+    )
 
-    # Always use our flat local cache — avoids HF hub symlink cache which can produce
-    # a broken directory structure on Windows without Developer Mode (WinError 1314).
     if model_path:
         load_path = model_path
-        ConfigManager.console_print(f'Loading model from: {model_path}')
+        ConfigManager.console_print(f'Loading model from user-specified path: {model_path}')
+        _validate_model_dir(load_path)
     else:
         load_path = _download_without_symlinks(model_name)
 
-    ConfigManager.console_print(f'Initializing WhisperModel from {load_path}...')
+    try:
+        files = os.listdir(load_path)
+        ConfigManager.console_print(f'Model dir contents ({len(files)} files): {files}')
+    except Exception:
+        pass
+
+    ConfigManager.console_print(f'Calling WhisperModel({load_path!r}, device={device!r}, compute_type={compute_type!r})...')
     try:
         model = WhisperModel(load_path, device=device, compute_type=compute_type)
     except Exception as e:
-        ConfigManager.console_print(f'Error loading model ({e}). Retrying with cpu/int8.')
+        ConfigManager.console_print(f'WhisperModel init failed: {e}. Retrying with device=cpu, compute_type=int8.')
         try:
             model = WhisperModel(load_path, device='cpu', compute_type='int8')
         except Exception as e2:
             raise RuntimeError(f'WhisperModel failed to load: {e2}') from e2
 
-    ConfigManager.console_print('Local model created.')
+    ConfigManager.console_print(f'Local model created successfully: {model}')
     return model
 
 

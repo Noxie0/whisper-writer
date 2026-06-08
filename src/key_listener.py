@@ -297,6 +297,7 @@ class KeyListener:
     def select_backend_from_config(self):
         """Select the active backend based on configuration."""
         preferred_backend = ConfigManager.get_config_value('recording_options', 'input_backend')
+        ConfigManager.console_print(f'Input backend preference from config: {preferred_backend!r}')
 
         if preferred_backend == 'auto':
             self.select_active_backend()
@@ -310,10 +311,14 @@ class KeyListener:
                 try:
                     self.set_active_backend(backend_map[preferred_backend])
                 except ValueError:
-                    print(f"Preferred backend '{preferred_backend}' is not available. Falling back to auto selection.")
+                    ConfigManager.console_print(
+                        f"Preferred backend {preferred_backend!r} not available. Falling back to auto."
+                    )
                     self.select_active_backend()
             else:
-                print(f"Unknown backend '{preferred_backend}'. Falling back to auto selection.")
+                ConfigManager.console_print(
+                    f"Unknown backend {preferred_backend!r}. Falling back to auto."
+                )
                 self.select_active_backend()
 
     def select_active_backend(self):
@@ -322,6 +327,7 @@ class KeyListener:
             raise RuntimeError("No supported input backend found")
         self.active_backend = self.backends[0]
         self.active_backend.on_input_event = self.on_input_event
+        ConfigManager.console_print(f'Active input backend: {type(self.active_backend).__name__}')
 
     def set_active_backend(self, backend_class):
         """Set a specific backend as active."""
@@ -331,6 +337,7 @@ class KeyListener:
                 self.stop()
             self.active_backend = new_backend
             self.active_backend.on_input_event = self.on_input_event
+            ConfigManager.console_print(f'Active input backend set to: {backend_class.__name__}')
             self.start()
         else:
             raise ValueError(f"Backend {backend_class.__name__} is not available")
@@ -354,7 +361,9 @@ class KeyListener:
     def load_activation_keys(self):
         """Load activation keys from configuration."""
         key_combination = ConfigManager.get_config_value('recording_options', 'activation_key')
+        ConfigManager.console_print(f'Activation key from config: {key_combination!r}')
         keys = self.parse_key_combination(key_combination)
+        ConfigManager.console_print(f'Parsed activation keys: {keys}')
         self.set_activation_keys(keys)
 
     def parse_key_combination(self, combination_string: str) -> Set[KeyCode | frozenset[KeyCode]]:
@@ -376,7 +385,7 @@ class KeyListener:
                     keycode = KeyCode[key]
                     keys.add(keycode)
                 except KeyError:
-                    print(f"Unknown key: {key}")
+                    ConfigManager.console_print(f"Unknown key in activation combo: {key!r} — skipped.")
         return keys
 
     def set_activation_keys(self, keys: Set[KeyCode]):
@@ -452,7 +461,7 @@ class EvdevBackend(InputBackend):
         import signal
 
         def signal_handler(signum, frame):
-            print("Received termination signal. Stopping evdev backend...")
+            ConfigManager.console_print(f"Evdev: received termination signal {signum}. Stopping.")
             self.stop()
 
         signal.signal(signal.SIGTERM, signal_handler)
@@ -466,7 +475,7 @@ class EvdevBackend(InputBackend):
         if self.thread:
             self.thread.join(timeout=1)  # Wait for up to 1 second
             if self.thread.is_alive():
-                print("Thread did not terminate in time. Forcing exit.")
+                ConfigManager.console_print("Evdev: listener thread did not terminate in time.")
 
         # Close all devices
         for device in self.devices:
@@ -494,7 +503,7 @@ class EvdevBackend(InputBackend):
             except Exception as e:
                 if self.stop_event.is_set():
                     break
-                print(f"Unexpected error in _listen_loop: {e}")
+                ConfigManager.console_print(f"Evdev: unexpected error in listen loop: {e}")
 
     def _read_device_events(self, device):
         """Read and process events from a single device."""
@@ -511,10 +520,10 @@ class EvdevBackend(InputBackend):
         if isinstance(error, BlockingIOError) and error.errno == errno.EAGAIN:
             return  # Non-blocking IO is expected, just continue
         if isinstance(error, OSError) and (error.errno == errno.EBADF or error.errno == errno.ENODEV):
-            print(f"Device {device.path} is no longer available. Removing it.")
+            ConfigManager.console_print(f"Evdev: device {device.path} no longer available. Removing.")
             self.devices.remove(device)
         else:
-            print(f"Unexpected error reading device: {error}")
+            ConfigManager.console_print(f"Evdev: unexpected error reading device: {error}")
 
     def _handle_input_event(self, event):
         """Process a single input event."""

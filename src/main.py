@@ -100,9 +100,10 @@ class WhisperWriterApp(QObject):
         self.settings_window.settings_saved.connect(self.restart_app)
 
         if ConfigManager.config_file_exists():
+            ConfigManager.console_print('Config file found. Initializing components.')
             self.initialize_components()
         else:
-            print('No valid configuration file found. Opening settings window...')
+            ConfigManager.console_print('No config file found. Opening settings window.')
             self.settings_window.show()
 
     def _setup_file_log(self):
@@ -116,9 +117,18 @@ class WhisperWriterApp(QObject):
         if sys.stderr is not None:
             sys.stderr = _Tee(sys.stderr, self._log_file)
 
+        ConfigManager.console_print('=== WhisperWriter session started ===')
+        ConfigManager.console_print(f'Log: {log_path}')
+        ConfigManager.console_print(
+            f'Python {sys.version} | platform: {sys.platform} | PID: {os.getpid()}'
+        )
+        ConfigManager.console_print(f'Executable: {sys.executable}')
+        ConfigManager.console_print(f'Working dir: {_ROOT_DIR}')
+
     def _write_log(self, msg):
         if self._log_file and not self._log_file.closed:
-            self._log_file.write(msg + '\n')
+            ts = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+            self._log_file.write(f'[{ts}] {msg}\n')
 
     def _load_model_with_dialog(self):
         dialog = QDialog()
@@ -181,28 +191,44 @@ class WhisperWriterApp(QObject):
         ConfigManager.console_print(f'Model load error: {err}')
 
     def initialize_components(self):
-        self.input_simulator = InputSimulator()
+        ConfigManager.console_print('--- initialize_components start ---')
 
+        ConfigManager.console_print('Creating InputSimulator...')
+        self.input_simulator = InputSimulator()
+        ConfigManager.console_print('InputSimulator ready.')
+
+        ConfigManager.console_print('Creating KeyListener...')
         self.key_listener = KeyListener()
         self.key_listener.add_callback("on_activate", self.on_activation)
         self.key_listener.add_callback("on_deactivate", self.on_deactivation)
+        ConfigManager.console_print('KeyListener ready.')
 
+        ConfigManager.console_print('Loading model...')
         self._load_model_with_dialog()
+        ConfigManager.console_print(f'Model loaded: {self.local_model}')
 
         self.result_thread = None
 
+        ConfigManager.console_print('Creating MainWindow...')
         self.main_window = MainWindow()
         self.main_window.openSettings.connect(self.settings_window.show)
         self.main_window.startListening.connect(self.key_listener.start)
         self.main_window.closeApp.connect(self.exit_app)
+        ConfigManager.console_print('MainWindow ready.')
 
         if not ConfigManager.get_config_value('misc', 'hide_status_window'):
+            ConfigManager.console_print('Creating StatusWindow...')
             self.status_window = StatusWindow()
+            ConfigManager.console_print('StatusWindow ready.')
+        else:
+            ConfigManager.console_print('StatusWindow hidden (hide_status_window=true).')
 
         self.create_tray_icon()
         self.main_window.show()
+        ConfigManager.console_print('--- initialize_components done. App ready. ---')
 
     def create_tray_icon(self):
+        ConfigManager.console_print('Creating system tray icon...')
         self.tray_icon = QSystemTrayIcon(QIcon(_asset('ww-logo-dark.png')), self.app)
 
         tray_menu = QMenu()
@@ -221,26 +247,34 @@ class WhisperWriterApp(QObject):
 
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
+        ConfigManager.console_print('Tray icon ready.')
 
     def cleanup(self):
+        ConfigManager.console_print('cleanup() called.')
         if self.key_listener:
+            ConfigManager.console_print('Stopping KeyListener...')
             self.key_listener.stop()
         if self.input_simulator:
+            ConfigManager.console_print('Cleaning up InputSimulator...')
             self.input_simulator.cleanup()
+        ConfigManager.console_print('=== WhisperWriter session ended ===')
         if self._log_file and not self._log_file.closed:
             self._log_file.close()
 
     def exit_app(self):
+        ConfigManager.console_print('exit_app() called.')
         self.cleanup()
         QApplication.quit()
 
     def restart_app(self):
+        ConfigManager.console_print('restart_app() called — settings saved, restarting.')
         self.cleanup()
         QApplication.quit()
         QProcess.startDetached(sys.executable, sys.argv)
 
     def on_settings_closed(self):
         if not os.path.exists(os.path.join(_SRC_DIR, 'config.yaml')):
+            ConfigManager.console_print('Settings closed without saving — using defaults.')
             QMessageBox.information(
                 self.settings_window,
                 'Using Default Values',
@@ -249,25 +283,33 @@ class WhisperWriterApp(QObject):
             self.initialize_components()
 
     def on_activation(self):
+        recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
         if self.result_thread and self.result_thread.isRunning():
-            recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
+            ConfigManager.console_print(
+                f'Hotkey activated (thread running, mode={recording_mode}) — stopping.'
+            )
             if recording_mode == 'press_to_toggle':
                 self.result_thread.stop_recording()
             elif recording_mode == 'continuous':
                 self.stop_result_thread()
             return
 
+        ConfigManager.console_print(f'Hotkey activated. Starting recording (mode={recording_mode}).')
         self.start_result_thread()
 
     def on_deactivation(self):
-        if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'hold_to_record':
+        recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
+        if recording_mode == 'hold_to_record':
             if self.result_thread and self.result_thread.isRunning():
+                ConfigManager.console_print('Hotkey released (hold_to_record) — stopping recording.')
                 self.result_thread.stop_recording()
 
     def start_result_thread(self):
         if self.result_thread and self.result_thread.isRunning():
+            ConfigManager.console_print('start_result_thread() called but thread already running — skipped.')
             return
 
+        ConfigManager.console_print('Starting ResultThread...')
         self.result_thread = ResultThread(self.local_model)
         if not ConfigManager.get_config_value('misc', 'hide_status_window'):
             self.result_thread.statusSignal.connect(self.status_window.updateStatus)
@@ -278,18 +320,25 @@ class WhisperWriterApp(QObject):
 
     def stop_result_thread(self):
         if self.result_thread and self.result_thread.isRunning():
+            ConfigManager.console_print('Stopping ResultThread...')
             self.result_thread.stop()
 
     def on_transcription_complete(self, result):
+        ConfigManager.console_print(
+            f'Transcription complete ({len(result)} chars). Typing result: {result!r}'
+        )
         pyperclip.copy(result)
         self.input_simulator.typewrite(result)
 
         if ConfigManager.get_config_value('misc', 'noise_on_completion'):
             AudioPlayer(_asset('beep.wav')).play(block=True)
 
-        if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'continuous':
+        recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
+        if recording_mode == 'continuous':
+            ConfigManager.console_print('Continuous mode — restarting recording.')
             self.start_result_thread()
         else:
+            ConfigManager.console_print('Restarting key listener.')
             self.key_listener.start()
 
     def run(self):
