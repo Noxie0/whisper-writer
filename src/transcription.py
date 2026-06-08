@@ -17,17 +17,33 @@ def _model_cached_locally(model_name):
     return os.path.isfile(os.path.join(local_dir, "model.bin")), local_dir
 
 
+def _validate_model_dir(local_dir):
+    """Raise RuntimeError if model.bin is missing or empty (broken HF symlink cache)."""
+    model_bin = os.path.join(local_dir, 'model.bin')
+    if not os.path.isfile(model_bin):
+        raise RuntimeError(
+            f'model.bin not found in {local_dir}. '
+            'Download may have failed — delete the folder and restart.')
+    size = os.path.getsize(model_bin)
+    if size == 0:
+        raise RuntimeError(
+            f'model.bin is 0 bytes in {local_dir}. '
+            'HuggingFace symlink cache is broken — delete the folder and restart.')
+    ConfigManager.console_print(f'model.bin OK ({size // 1024 // 1024} MB).')
+
+
 def _download_without_symlinks(model_name):
     """Download model to flat local dir — bypasses WinError 1314 symlink restriction."""
     from faster_whisper.utils import download_model as fw_download
     cached, local_dir = _model_cached_locally(model_name)
     os.makedirs(local_dir, exist_ok=True)
     if not cached:
-        ConfigManager.console_print(
-            f'Downloading {model_name} to local cache (Windows symlink workaround): {local_dir}')
+        ConfigManager.console_print(f'Downloading {model_name} to local cache: {local_dir}')
         fw_download(model_name, output_dir=local_dir)
+        ConfigManager.console_print('Download complete.')
     else:
         ConfigManager.console_print(f'Using local model cache: {local_dir}')
+    _validate_model_dir(local_dir)
     return local_dir
 
 
@@ -49,6 +65,7 @@ def create_local_model():
     else:
         load_path = _download_without_symlinks(model_name)
 
+    ConfigManager.console_print(f'Initializing WhisperModel from {load_path}...')
     try:
         model = WhisperModel(load_path, device=device, compute_type=compute_type)
     except Exception as e:
