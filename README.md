@@ -63,6 +63,20 @@ python -m venv venv
 venv\Scripts\activate
 ```
 
+Verify you are on 3.11 before continuing — Python 3.12+ is **not supported**:
+
+```bash
+python --version
+# Must print: Python 3.11.x
+```
+
+If it prints anything else, install Python 3.11 from [python.org](https://www.python.org/downloads/), then recreate the venv with the correct interpreter:
+
+```bash
+py -3.11 -m venv venv
+venv\Scripts\activate
+```
+
 ### 3. Install dependencies
 
 ```bash
