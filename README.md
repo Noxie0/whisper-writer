@@ -5,7 +5,7 @@
 Local, offline speech-to-text that types for you. Press a hotkey → speak → the transcription is typed into whatever window is active. No cloud, no API key required.
 
 <p align="center">
-  <img src="./assets/ww-demo-image-02.gif" alt="WhisperWriter demo" width="340">
+  <img src="./assets/ww-demo-image-02.gif" alt="WhisperWriter transcription demo" width="500">
 </p>
 
 ---
@@ -21,6 +21,10 @@ The core transcription engine is unchanged. Everything around it was rewritten:
 - **Vocabulary tab** — improved layout, larger font, clearer instructions
 - **Logs tab** — real-time view of all app messages (captures logs even when "Print to Terminal" is off)
 - **About tab** — project info and credits
+
+<p align="center">
+  <img src="./assets/ww-settings-demo.gif" alt="WhisperWriter settings UI" width="500">
+</p>
 
 ---
 
