@@ -159,7 +159,7 @@ Open Settings → **Logs** to see a live view of everything the app prints. Logs
 - [ ] **Installer** — one-click setup via Inno Setup or NSIS with Start Menu / desktop shortcuts
 - [ ] **FunASR backend** — add [FunASR](https://github.com/modelscope/FunASR) as an alternative recognition engine (stronger on Chinese and multilingual audio)
 - [ ] **Vosk backend** — lightweight offline option for low-end hardware
-- [ ] **System tray** — minimize to tray instead of taskbar, with right-click menu
+- [x] **System tray** — minimize to tray instead of taskbar, with right-click menu
 - [ ] **Per-app profiles** — different hotkeys or post-processing rules per active window
 - [ ] **Auto-update** — check GitHub releases for newer version on startup
 
