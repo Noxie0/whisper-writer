@@ -1,15 +1,20 @@
 import os
 import sys
+import datetime
 import time
 import pyperclip
 from audioplayer import AudioPlayer
 from pynput.keyboard import Controller
-from PyQt5.QtCore import QObject, QProcess
+from PyQt5.QtCore import QObject, QProcess, QThread, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QMessageBox
+from PyQt5.QtWidgets import (
+    QApplication, QSystemTrayIcon, QMenu, QAction, QMessageBox,
+    QDialog, QVBoxLayout, QLabel, QProgressBar,
+)
 
 _SRC_DIR  = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR = os.path.dirname(_SRC_DIR)
+_LOGS_DIR = os.path.join(_ROOT_DIR, 'logs')
 
 def _asset(name):
     return os.path.join(_ROOT_DIR, 'assets', name)
@@ -17,18 +22,61 @@ def _asset(name):
 from key_listener import KeyListener
 from result_thread import ResultThread
 from ui.main_window import MainWindow
-from ui.settings_window import SettingsWindow
+from ui.settings_window import SettingsWindow, _log_hooks
 from ui.status_window import StatusWindow
-from transcription import create_local_model
+from transcription import create_local_model, _model_cached_locally
 from input_simulation import InputSimulator
 from utils import ConfigManager
 
 
+class _Tee:
+    """Write to both the original stream and the log file simultaneously."""
+    def __init__(self, stream, log_file):
+        self._stream = stream
+        self._log = log_file
+
+    def write(self, data):
+        self._stream.write(data)
+        try:
+            self._log.write(data)
+        except Exception:
+            pass
+
+    def flush(self):
+        self._stream.flush()
+        try:
+            self._log.flush()
+        except Exception:
+            pass
+
+    def fileno(self):
+        return self._stream.fileno()
+
+
+class ModelLoaderThread(QThread):
+    status = pyqtSignal(str)
+    model_ready = pyqtSignal(object)
+    load_error = pyqtSignal(str)
+
+    def run(self):
+        try:
+            opts = ConfigManager.get_config_section('model_options')['local']
+            model_name = opts.get('model_path') or opts['model']
+            cached, _ = _model_cached_locally(model_name)
+            if cached:
+                self.status.emit(f'Loading {model_name} model...')
+            else:
+                self.status.emit(
+                    f'Downloading {model_name} model...\nThis may take a few minutes on first run.'
+                )
+            model = create_local_model()
+            self.model_ready.emit(model)
+        except Exception as e:
+            self.load_error.emit(str(e))
+
+
 class WhisperWriterApp(QObject):
     def __init__(self):
-        """
-        Initialize the application, opening settings window if no configuration file is found.
-        """
         super().__init__()
         self.app = QApplication(sys.argv)
         self.app.setWindowIcon(QIcon(_asset('ww-logo.png')))
@@ -38,7 +86,9 @@ class WhisperWriterApp(QObject):
         self.result_thread = None
         self.main_window = None
         self.status_window = None
+        self._log_file = None
 
+        self._setup_file_log()
         ConfigManager.initialize()
 
         self.settings_window = SettingsWindow()
@@ -51,17 +101,87 @@ class WhisperWriterApp(QObject):
             print('No valid configuration file found. Opening settings window...')
             self.settings_window.show()
 
+    def _setup_file_log(self):
+        os.makedirs(_LOGS_DIR, exist_ok=True)
+        ts = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        log_path = os.path.join(_LOGS_DIR, f'{ts}.log')
+        self._log_file = open(log_path, 'w', encoding='utf-8', buffering=1)
+        _log_hooks.append(lambda msg: self._write_log(msg))
+        sys.stdout = _Tee(sys.stdout, self._log_file)
+        sys.stderr = _Tee(sys.stderr, self._log_file)
+
+    def _write_log(self, msg):
+        if self._log_file and not self._log_file.closed:
+            self._log_file.write(msg + '\n')
+
+    def _load_model_with_dialog(self):
+        dialog = QDialog()
+        dialog.setWindowTitle('WhisperWriter')
+        dialog.setFixedWidth(420)
+        dialog.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e2e;
+                border: 1px solid #45475a;
+            }
+            QLabel {
+                color: #cdd6f4;
+                font-size: 13px;
+            }
+            QProgressBar {
+                border: none;
+                background-color: #313244;
+                border-radius: 4px;
+            }
+            QProgressBar::chunk {
+                background-color: #89b4fa;
+                border-radius: 4px;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(16)
+
+        label = QLabel('Preparing model...')
+        label.setAlignment(Qt.AlignCenter)
+        label.setWordWrap(True)
+
+        bar = QProgressBar()
+        bar.setRange(0, 0)
+        bar.setTextVisible(False)
+        bar.setFixedHeight(8)
+
+        layout.addWidget(label)
+        layout.addWidget(bar)
+
+        self._loader = ModelLoaderThread()
+        self._loader.status.connect(label.setText)
+        self._loader.model_ready.connect(lambda m: setattr(self, 'local_model', m))
+        self._loader.model_ready.connect(lambda _: dialog.accept())
+        self._loader.load_error.connect(lambda err: self._on_model_load_error(label, bar, err))
+        self._loader.start()
+
+        screen = self.app.primaryScreen().geometry()
+        dialog.move(
+            screen.center().x() - dialog.sizeHint().width() // 2,
+            screen.center().y() - 80,
+        )
+        dialog.exec_()
+
+    def _on_model_load_error(self, label, bar, err):
+        bar.setRange(0, 1)
+        label.setText(f'Error loading model:\n{err}')
+        ConfigManager.console_print(f'Model load error: {err}')
+
     def initialize_components(self):
-        """
-        Initialize the components of the application.
-        """
         self.input_simulator = InputSimulator()
 
         self.key_listener = KeyListener()
         self.key_listener.add_callback("on_activate", self.on_activation)
         self.key_listener.add_callback("on_deactivate", self.on_deactivation)
 
-        self.local_model = create_local_model()
+        self._load_model_with_dialog()
 
         self.result_thread = None
 
@@ -77,9 +197,6 @@ class WhisperWriterApp(QObject):
         self.main_window.show()
 
     def create_tray_icon(self):
-        """
-        Create the system tray icon and its context menu.
-        """
         self.tray_icon = QSystemTrayIcon(QIcon(_asset('ww-logo-dark.png')), self.app)
 
         tray_menu = QMenu()
@@ -104,24 +221,19 @@ class WhisperWriterApp(QObject):
             self.key_listener.stop()
         if self.input_simulator:
             self.input_simulator.cleanup()
+        if self._log_file and not self._log_file.closed:
+            self._log_file.close()
 
     def exit_app(self):
-        """
-        Exit the application.
-        """
         self.cleanup()
         QApplication.quit()
 
     def restart_app(self):
-        """Restart the application to apply the new settings."""
         self.cleanup()
         QApplication.quit()
         QProcess.startDetached(sys.executable, sys.argv)
 
     def on_settings_closed(self):
-        """
-        If settings is closed without saving on first run, initialize the components with default values.
-        """
         if not os.path.exists(os.path.join(_SRC_DIR, 'config.yaml')):
             QMessageBox.information(
                 self.settings_window,
@@ -131,9 +243,6 @@ class WhisperWriterApp(QObject):
             self.initialize_components()
 
     def on_activation(self):
-        """
-        Called when the activation key combination is pressed.
-        """
         if self.result_thread and self.result_thread.isRunning():
             recording_mode = ConfigManager.get_config_value('recording_options', 'recording_mode')
             if recording_mode == 'press_to_toggle':
@@ -145,17 +254,11 @@ class WhisperWriterApp(QObject):
         self.start_result_thread()
 
     def on_deactivation(self):
-        """
-        Called when the activation key combination is released.
-        """
         if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'hold_to_record':
             if self.result_thread and self.result_thread.isRunning():
                 self.result_thread.stop_recording()
 
     def start_result_thread(self):
-        """
-        Start the result thread to record audio and transcribe it.
-        """
         if self.result_thread and self.result_thread.isRunning():
             return
 
@@ -168,16 +271,10 @@ class WhisperWriterApp(QObject):
         self.result_thread.start()
 
     def stop_result_thread(self):
-        """
-        Stop the result thread.
-        """
         if self.result_thread and self.result_thread.isRunning():
             self.result_thread.stop()
 
     def on_transcription_complete(self, result):
-        """
-        When the transcription is complete, type the result and start listening for the activation key again.
-        """
         pyperclip.copy(result)
         self.input_simulator.typewrite(result)
 
@@ -190,9 +287,6 @@ class WhisperWriterApp(QObject):
             self.key_listener.start()
 
     def run(self):
-        """
-        Start the application.
-        """
         sys.exit(self.app.exec_())
 
 

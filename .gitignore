@@ -132,6 +132,9 @@ dmypy.json
 config.yaml
 src/config.yaml
 
+# Session log files
+logs/
+
 # Claude Code memory / project files
 .claude/
 
