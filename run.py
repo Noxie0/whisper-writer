@@ -16,7 +16,7 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 # Suppress huggingface_hub noise: symlink warning (Windows without Developer Mode)
 # and unauthenticated-request notice (not needed for public model downloads).
 os.environ.setdefault('HF_HUB_DISABLE_SYMLINKS_WARNING', '1')
-os.environ.setdefault('HF_HUB_VERBOSITY', 'warning')
+os.environ.setdefault('HF_HUB_VERBOSITY', 'error')
 
 print('Starting WhisperWriter...')
 load_dotenv()

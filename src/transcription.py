@@ -1,6 +1,10 @@
 import os
+import warnings
 import numpy as np
 from faster_whisper import WhisperModel
+
+# faster-whisper passes deprecated local_dir_use_symlinks to snapshot_download
+warnings.filterwarnings('ignore', message='.*local_dir_use_symlinks.*', category=UserWarning)
 
 from utils import ConfigManager
 from vocabulary import apply_vocabulary
