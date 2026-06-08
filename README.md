@@ -30,7 +30,7 @@ The core transcription engine is unchanged. Everything around it was rewritten:
 
 ## Requirements
 
-- **Python 3.11** (exactly — 3.12+ is untested, 3.14 will fail) — [python.org/downloads](https://www.python.org/downloads/)
+- **Python 3.11 or 3.12** — [python.org/downloads](https://www.python.org/downloads/) (3.13+ may work; 3.14 is untested)
 - **Git** — [git-scm.com/downloads](https://git-scm.com/downloads)
 - **Microsoft Visual C++ 14.0 or greater** — required by several dependencies. Get it via [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (install the "Desktop development with C++" workload)
 - **Windows** (this fork targets Windows; the original supports Linux/macOS too)
@@ -63,17 +63,17 @@ python -m venv venv
 venv\Scripts\activate
 ```
 
-Verify you are on 3.11 before continuing — Python 3.12+ is **not supported**:
+Verify you are on a supported version before continuing:
 
 ```bash
 python --version
-# Must print: Python 3.11.x
+# Recommended: Python 3.11.x or 3.12.x
 ```
 
-If it prints anything else, install Python 3.11 from [python.org](https://www.python.org/downloads/), then recreate the venv with the correct interpreter:
+If you have multiple Python versions installed, create the venv explicitly:
 
 ```bash
-py -3.11 -m venv venv
+py -3.12 -m venv venv
 venv\Scripts\activate
 ```
 
