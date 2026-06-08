@@ -67,9 +67,18 @@ def create_local_model():
     model_name = local_model_options['model']
     device = local_model_options['device']
 
+    # Resolve 'default' compute_type for CPU to 'int8'.
+    # ctranslate2 resolves 'default' on CPU to float32, which uses AVX2 SIMD.
+    # CPUs without AVX2 abort the process at the C level (unrecoverable).
+    # int8 is the recommended CPU mode for faster-whisper and has no AVX2 requirement.
+    effective_compute_type = compute_type
+    if compute_type == 'default' and device == 'cpu':
+        effective_compute_type = 'int8'
+
     ConfigManager.console_print(
         f'Model options: name={model_name!r}, device={device!r}, '
-        f'compute_type={compute_type!r}, model_path={model_path!r}'
+        f'compute_type={compute_type!r} → effective={effective_compute_type!r}, '
+        f'model_path={model_path!r}'
     )
 
     if model_path:
@@ -85,9 +94,11 @@ def create_local_model():
     except Exception:
         pass
 
-    ConfigManager.console_print(f'Calling WhisperModel({load_path!r}, device={device!r}, compute_type={compute_type!r})...')
+    ConfigManager.console_print(
+        f'Calling WhisperModel({load_path!r}, device={device!r}, compute_type={effective_compute_type!r})...'
+    )
     try:
-        model = WhisperModel(load_path, device=device, compute_type=compute_type)
+        model = WhisperModel(load_path, device=device, compute_type=effective_compute_type)
     except Exception as e:
         ConfigManager.console_print(f'WhisperModel init failed: {e}. Retrying with device=cpu, compute_type=int8.')
         try:
