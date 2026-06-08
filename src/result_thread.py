@@ -13,6 +13,34 @@ from transcription import transcribe
 from utils import ConfigManager
 
 
+def _resolve_device(name):
+    """Resolve a device name to a specific device index.
+
+    When multiple devices share the same name (MME/DirectSound/WASAPI), prefer
+    MME (hostapi 0) because it resamples for us, avoiding sample-rate mismatches.
+    Returns None (system default) when name is None/empty.
+    """
+    if not name:
+        return None
+    try:
+        devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
+        mme_idx = next((i for i, h in enumerate(hostapis) if h['name'] == 'MME'), None)
+        ds_idx  = next((i for i, h in enumerate(hostapis) if 'DirectSound' in h['name']), None)
+
+        candidates = [d for d in devices if d['max_input_channels'] > 0
+                      and (name in d['name'] or d['name'] in name)]
+        for preferred_hostapi in (mme_idx, ds_idx):
+            match = next((d for d in candidates if d['hostapi'] == preferred_hostapi), None)
+            if match:
+                return match['index']
+        if candidates:
+            return candidates[0]['index']
+    except Exception:
+        pass
+    return name
+
+
 class ResultThread(QThread):
     """
     A thread class for handling audio recording, transcription, and result processing.
@@ -144,8 +172,9 @@ class ResultThread(QThread):
             self._last_level = float(np.clip(log_level, 0.0, 1.0))
             data_ready.set()
 
+        device = _resolve_device(recording_options.get('sound_device'))
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype='int16',
-                            blocksize=frame_size, device=recording_options.get('sound_device'),
+                            blocksize=frame_size, device=device,
                             callback=audio_callback):
             while self.is_running and self.is_recording:
                 data_ready.wait()
