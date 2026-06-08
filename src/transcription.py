@@ -31,36 +31,28 @@ def create_local_model():
     ConfigManager.console_print('Creating local model...')
     local_model_options = ConfigManager.get_config_section('model_options')['local']
     compute_type = local_model_options['compute_type']
-    model_path = local_model_options.get('model_path')
-    model_name = model_path or local_model_options['model']
-
+    model_path = local_model_options.get('model_path') or ''
+    model_name = local_model_options['model']
     device = local_model_options['device']
+
     ConfigManager.console_print(f'Device: {device}, compute_type: {compute_type}')
 
-    cached, local_dir = _model_cached_locally(model_name)
-    load_path = local_dir if cached else model_name
+    # Always use our flat local cache — avoids HF hub symlink cache which can produce
+    # a broken directory structure on Windows without Developer Mode (WinError 1314).
+    if model_path:
+        load_path = model_path
+        ConfigManager.console_print(f'Loading model from: {model_path}')
+    else:
+        load_path = _download_without_symlinks(model_name)
 
     try:
-        if model_path:
-            ConfigManager.console_print(f'Loading model from: {model_path}')
-            model = WhisperModel(model_path, device=device, compute_type=compute_type, download_root=None)
-        else:
-            model = WhisperModel(load_path, device=device, compute_type=compute_type)
-    except OSError as e:
-        if getattr(e, 'winerror', None) == 1314 or 'privilege' in str(e).lower():
-            ConfigManager.console_print('WinError 1314: symlink privilege blocked. Switching to local copy download...')
-            try:
-                local_dir = _download_without_symlinks(model_name)
-                model = WhisperModel(local_dir, device=device, compute_type=compute_type)
-            except Exception as e2:
-                ConfigManager.console_print(f'Local download failed: {e2}. Falling back to CPU int8.')
-                model = WhisperModel(model_name, device='cpu', compute_type='int8')
-        else:
-            ConfigManager.console_print(f'OSError loading model: {e}. Falling back to CPU int8.')
-            model = WhisperModel(model_path or model_name, device='cpu', compute_type='int8')
+        model = WhisperModel(load_path, device=device, compute_type=compute_type)
     except Exception as e:
-        ConfigManager.console_print(f'Error initializing WhisperModel: {e}. Falling back to CPU int8.')
-        model = WhisperModel(model_path or model_name, device='cpu', compute_type='int8')
+        ConfigManager.console_print(f'Error loading model ({e}). Retrying with cpu/int8.')
+        try:
+            model = WhisperModel(load_path, device='cpu', compute_type='int8')
+        except Exception as e2:
+            raise RuntimeError(f'WhisperModel failed to load: {e2}') from e2
 
     ConfigManager.console_print('Local model created.')
     return model
