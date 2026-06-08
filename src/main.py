@@ -32,25 +32,29 @@ from utils import ConfigManager
 class _Tee:
     """Write to both the original stream and the log file simultaneously."""
     def __init__(self, stream, log_file):
-        self._stream = stream
+        self._stream = stream  # may be None (pythonw / no-console environment)
         self._log = log_file
 
     def write(self, data):
-        self._stream.write(data)
+        if self._stream is not None:
+            self._stream.write(data)
         try:
             self._log.write(data)
         except Exception:
             pass
 
     def flush(self):
-        self._stream.flush()
+        if self._stream is not None:
+            self._stream.flush()
         try:
             self._log.flush()
         except Exception:
             pass
 
     def fileno(self):
-        return self._stream.fileno()
+        if self._stream is not None:
+            return self._stream.fileno()
+        raise OSError('underlying stream has no file descriptor')
 
 
 class ModelLoaderThread(QThread):
@@ -107,8 +111,10 @@ class WhisperWriterApp(QObject):
         log_path = os.path.join(_LOGS_DIR, f'{ts}.log')
         self._log_file = open(log_path, 'w', encoding='utf-8', buffering=1)
         _log_hooks.append(lambda msg: self._write_log(msg))
-        sys.stdout = _Tee(sys.stdout, self._log_file)
-        sys.stderr = _Tee(sys.stderr, self._log_file)
+        if sys.stdout is not None:
+            sys.stdout = _Tee(sys.stdout, self._log_file)
+        if sys.stderr is not None:
+            sys.stderr = _Tee(sys.stderr, self._log_file)
 
     def _write_log(self, msg):
         if self._log_file and not self._log_file.closed:
