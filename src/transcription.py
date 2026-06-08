@@ -94,15 +94,32 @@ def create_local_model():
     except Exception:
         pass
 
+    # Probe CPU feature support before touching the model.
+    # If ctranslate2 itself crashes here, the issue is the ctranslate2 install, not the model.
+    try:
+        import ctranslate2 as _ct2
+        supported = _ct2.get_supported_compute_types('cpu')
+        ConfigManager.console_print(f'ctranslate2 CPU supported compute types: {supported}')
+    except Exception as e:
+        ConfigManager.console_print(f'ctranslate2 CPU feature probe failed: {e}')
+
+    # cpu_threads=1 avoids OpenMP thread-pool initialization, which crashes on some
+    # machines at the C level (no Python exception; process aborts silently).
+    cpu_threads = 1 if device == 'cpu' else 0
+
     ConfigManager.console_print(
-        f'Calling WhisperModel({load_path!r}, device={device!r}, compute_type={effective_compute_type!r})...'
+        f'Calling WhisperModel({load_path!r}, device={device!r}, '
+        f'compute_type={effective_compute_type!r}, cpu_threads={cpu_threads})...'
     )
     try:
-        model = WhisperModel(load_path, device=device, compute_type=effective_compute_type)
+        model = WhisperModel(
+            load_path, device=device, compute_type=effective_compute_type,
+            cpu_threads=cpu_threads,
+        )
     except Exception as e:
-        ConfigManager.console_print(f'WhisperModel init failed: {e}. Retrying with device=cpu, compute_type=int8.')
+        ConfigManager.console_print(f'WhisperModel init failed: {e}. Retrying with device=cpu, compute_type=int8, cpu_threads=1.')
         try:
-            model = WhisperModel(load_path, device='cpu', compute_type='int8')
+            model = WhisperModel(load_path, device='cpu', compute_type='int8', cpu_threads=1)
         except Exception as e2:
             raise RuntimeError(f'WhisperModel failed to load: {e2}') from e2
 
