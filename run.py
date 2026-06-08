@@ -13,6 +13,11 @@ if os.path.isdir(_nvidia_dir):
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 
+# Suppress huggingface_hub noise: symlink warning (Windows without Developer Mode)
+# and unauthenticated-request notice (not needed for public model downloads).
+os.environ.setdefault('HF_HUB_DISABLE_SYMLINKS_WARNING', '1')
+os.environ.setdefault('HF_HUB_VERBOSITY', 'warning')
+
 print('Starting WhisperWriter...')
 load_dotenv()
 subprocess.run([sys.executable, os.path.join(_ROOT, 'src', 'main.py')], cwd=_ROOT)
