@@ -74,7 +74,7 @@ class WhisperWriterApp(QObject):
         """
         Create the system tray icon and its context menu.
         """
-        self.tray_icon = QSystemTrayIcon(QIcon(_asset('ww-logo.png')), self.app)
+        self.tray_icon = QSystemTrayIcon(QIcon(_asset('ww-logo-dark.png')), self.app)
 
         tray_menu = QMenu()
 
