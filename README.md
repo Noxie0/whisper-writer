@@ -32,6 +32,7 @@ The core transcription engine is unchanged. Everything around it was rewritten:
 
 - **Python 3.11** — [python.org/downloads](https://www.python.org/downloads/)
 - **Git** — [git-scm.com/downloads](https://git-scm.com/downloads)
+- **Microsoft Visual C++ 14.0 or greater** — required by several dependencies. Get it via [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (install the "Desktop development with C++" workload)
 - **Windows** (this fork targets Windows; the original supports Linux/macOS too)
 
 **For GPU acceleration (optional but recommended):**
@@ -71,7 +72,7 @@ pip install -r requirements.txt
 ### 4. Run
 
 ```bash
-python src/run.py
+python run.py
 ```
 
 On first launch the Settings window opens. Configure your preferences, hit **Save Settings**, then press **Start** in the main window. The default activation hotkey is `Ctrl+Shift+Space`.
