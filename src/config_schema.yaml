@@ -1,63 +1,39 @@
 # Configuration options for the Whisper models
 model_options:
-  use_api:
-    value: false
-    type: bool
-    description: "Toggle to choose whether to use the OpenAI API or a local Whisper model for transcription."
-
-  # Common configuration options for both API and local models
   common:
     language:
       value: null
       type: str
-      description: "The language code for the transcription in ISO-639-1 format."
+      description: "Language code for transcription (ISO-639-1 format, e.g. 'en', 'fr', 'de'). Leave blank to auto-detect the spoken language."
     temperature:
       value: 0.0
       type: float
-      description: "Controls the randomness of the transcription output. Lower values make the output more focused and deterministic."
+      description: "Controls randomness of the transcription output (0.0 to 1.0). Lower values produce more focused, deterministic results. 0.0 is recommended for most use cases."
     initial_prompt:
       value: null
       type: str
-      description: "A string used as an initial prompt to condition the transcription. More info: https://platform.openai.com/docs/guides/speech-to-text/prompting"
+      description: "Text used to prime the transcription model — useful for hinting at technical terms, punctuation style, or preferred formatting. Leave blank for no priming."
 
-  # Configuration options for the OpenAI API
-  api:
-    model:
-      value: whisper-1
-      type: str
-      description: "The model to use for transcription. Currently only 'whisper-1' is available."
-    base_url:
-      value: https://api.openai.com/v1
-      type: str
-      description: "The base URL for the API. Can be changed to use a local API endpoint."
-    api_key:
-      value: null
-      type: str
-      description: "Your API key for the OpenAI API. Required for non-local API usage."
-
-  # Configuration options for the faster-whisper model
   local:
     model:
-      value: base
+      value: medium
       type: str
-      description: "The model to use for transcription. The larger models provide better accuracy but are slower."
+      description: "Whisper model size. Recommended: 'medium' (best balance of speed and accuracy). Use 'large-v3' for maximum accuracy with a GPU. Use 'small' or 'base' for CPU-only setups."
       options:
-        - base
-        - base.en
         - tiny
         - tiny.en
+        - base
+        - base.en
         - small
         - small.en
         - medium
         - medium.en
-        - large
-        - large-v1
         - large-v2
         - large-v3
     device:
       value: auto
       type: str
-      description: "The device to run the local Whisper model on. Use 'cuda' for NVIDIA GPUs, 'cpu' for CPU-only processing, or 'auto' to let the system automatically choose the best available device."
+      description: "Device to run Whisper on. 'auto' detects the best option automatically. 'cuda' forces an NVIDIA GPU. 'cpu' forces CPU — slower but always compatible."
       options:
         - auto
         - cuda
@@ -65,7 +41,7 @@ model_options:
     compute_type:
       value: default
       type: str
-      description: "The compute type to use for the local Whisper model."
+      description: "Precision used for inference. 'default' lets the backend decide. 'int8' is fastest and works on CPU and GPU. 'float16' requires a CUDA GPU. 'float32' is slowest but universally compatible."
       options:
         - default
         - float32
@@ -74,26 +50,26 @@ model_options:
     condition_on_previous_text:
       value: true
       type: bool
-      description: "Set to true to use the previously transcribed text as a prompt for the next transcription request."
+      description: "When enabled, uses the previous transcription as context for the next one. Improves consistency across segments but may cause the model to repeat itself occasionally."
     vad_filter:
       value: false
       type: bool
-      description: "Set to true to use a voice activity detection (VAD) filter to remove silence from the recording."
+      description: "Filters silence from recordings using Whisper's built-in voice activity detection. Can improve accuracy and speed, but may clip the very beginning or end of speech."
     model_path:
       value: null
       type: str
-      description: "The path to the local Whisper model. If not specified, the default model will be downloaded."
+      description: "Path to a locally saved Whisper model folder. Leave blank to automatically download the selected model to the default cache directory."
 
 # Configuration options for activation and recording
 recording_options:
   activation_key:
     value: ctrl+shift+space
     type: str
-    description: "The keyboard shortcut to activate the recording and transcribing process. Separate keys with a '+'."
+    description: "Keyboard shortcut to trigger recording. Click the field and press your desired key combination (e.g. 'ctrl+shift+space'). Keys are joined with '+'."
   input_backend:
     value: auto
     type: str
-    description: "The input backend to use for detecting key presses. 'auto' will try to use the best available backend."
+    description: "Backend used to detect the activation key. 'auto' picks the best available option. 'pynput' works on Windows and most systems. 'evdev' is Linux-only. Leave on 'auto' unless you have issues."
     options:
       - auto
       - evdev
@@ -101,7 +77,7 @@ recording_options:
   recording_mode:
     value: continuous
     type: str
-    description: "The recording mode to use. Options include continuous (auto-restart recording after pause in speech until activation key is pressed again), voice_activity_detection (stop recording after pause in speech), press_to_toggle (stop recording when activation key is pressed again), hold_to_record (stop recording when activation key is released)."
+    description: "How recording is controlled. Continuous: keeps restarting after speech pauses until you press the key again. Voice Activity Detection: stops automatically after a period of silence. Press to Toggle: press key to start, press again to stop. Hold to Record: hold key to record, release to stop and transcribe."
     options:
       - continuous
       - voice_activity_detection
@@ -110,42 +86,42 @@ recording_options:
   sound_device:
     value: null
     type: str
-    description: "The numeric index of the sound device to use for recording. To find device numbers, run `python -m sounddevice`"
+    description: "Microphone to record from. Select 'Default' to use your system default input device, or choose a specific microphone from the list."
   sample_rate:
     value: 16000
     type: int
-    description: "The sample rate in Hz to use for recording."
+    description: "Audio recording sample rate in Hz. Whisper is optimized for 16000 Hz — only change this if your microphone does not support it."
   silence_duration:
     value: 900
     type: int
-    description: "The duration in milliseconds to wait for silence before stopping the recording."
+    description: "How long silence must last (in milliseconds) before auto-stopping in Continuous and Voice Activity Detection modes. Lower values stop sooner after you stop talking."
   min_duration:
     value: 100
     type: int
-    description: "The minimum duration in milliseconds for a recording to be processed. Recordings shorter than this will be discarded."
+    description: "Minimum recording duration in milliseconds. Recordings shorter than this are silently discarded, preventing accidental triggers from keyboard clicks or brief noises."
 
 # Post-processing options for the transcribed text
 post_processing:
   writing_key_press_delay:
     value: 0.005
     type: float
-    description: "The delay in seconds between each key press when writing the transcribed text."
+    description: "Delay in seconds between each simulated keystroke when typing out the transcription. Increase if text appears garbled or characters are skipped in fast applications."
   remove_trailing_period:
     value: false
     type: bool
-    description: "Set to true to remove the trailing period from the transcribed text."
+    description: "Removes the period Whisper often appends at the end of transcriptions. Useful when dictating mid-sentence or into fields that handle their own punctuation."
   add_trailing_space:
     value: true
     type: bool
-    description: "Set to true to add a space to the end of the transcribed text."
+    description: "Adds a space after the transcription so the next word you type starts correctly. Recommended to leave enabled."
   remove_capitalization:
     value: false
     type: bool
-    description: "Set to true to convert the transcribed text to lowercase."
+    description: "Converts all transcribed text to lowercase, removing the automatic capitalization Whisper applies."
   input_method:
     value: pynput
     type: str
-    description: "The method to use for simulating keyboard input."
+    description: "Method used to type out transcriptions. 'pynput' works on Windows and most systems. 'ydotool' and 'dotool' are Linux alternatives for Wayland sessions."
     options:
       - pynput
       - ydotool
@@ -156,12 +132,12 @@ misc:
   print_to_terminal:
     value: true
     type: bool
-    description: "Set to true to print the script status and transcribed text to the terminal."
+    description: "Prints recording status and transcription results to the terminal or console. Useful for debugging or monitoring activity."
   hide_status_window:
     value: false
     type: bool
-    description: "Set to true to hide the status window during operation."
+    description: "Hides the floating status window that shows recording and transcribing state. The app continues running in the background."
   noise_on_completion:
     value: false
     type: bool
-    description: "Set to true to play a noise after the transcription has been typed out."
+    description: "Plays a short sound when the transcription has finished typing. Useful as audio feedback when you are not watching the screen."

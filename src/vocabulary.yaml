@@ -1,0 +1,9 @@
+replacements:
+- from: noxy
+  to: noxie
+- from: noxi
+  to: noxie
+- from: slash
+  to: /
+- from: noxiee
+  to: noxie

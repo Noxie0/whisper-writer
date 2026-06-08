@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import pyperclip
 from audioplayer import AudioPlayer
 from pynput.keyboard import Controller
 from PyQt5.QtCore import QObject, QProcess
@@ -48,9 +49,7 @@ class WhisperWriterApp(QObject):
         self.key_listener.add_callback("on_activate", self.on_activation)
         self.key_listener.add_callback("on_deactivate", self.on_deactivation)
 
-        model_options = ConfigManager.get_config_section('model_options')
-        model_path = model_options.get('local', {}).get('model_path')
-        self.local_model = create_local_model() if not model_options.get('use_api') else None
+        self.local_model = create_local_model()
 
         self.result_thread = None
 
@@ -151,6 +150,7 @@ class WhisperWriterApp(QObject):
         self.result_thread = ResultThread(self.local_model)
         if not ConfigManager.get_config_value('misc', 'hide_status_window'):
             self.result_thread.statusSignal.connect(self.status_window.updateStatus)
+            self.result_thread.audioLevelSignal.connect(self.status_window.updateLevel)
             self.status_window.closeSignal.connect(self.stop_result_thread)
         self.result_thread.resultSignal.connect(self.on_transcription_complete)
         self.result_thread.start()
@@ -166,6 +166,7 @@ class WhisperWriterApp(QObject):
         """
         When the transcription is complete, type the result and start listening for the activation key again.
         """
+        pyperclip.copy(result)
         self.input_simulator.typewrite(result)
 
         if ConfigManager.get_config_value('misc', 'noise_on_completion'):

@@ -31,6 +31,7 @@ class ResultThread(QThread):
 
     statusSignal = pyqtSignal(str)
     resultSignal = pyqtSignal(str)
+    audioLevelSignal = pyqtSignal(float)
 
     def __init__(self, local_model=None):
         """
@@ -44,6 +45,7 @@ class ResultThread(QThread):
         self.is_running = True
         self.sample_rate = None
         self.mutex = QMutex()
+        self._last_level = 0.0
 
     def stop_recording(self):
         """Stop the current recording session."""
@@ -137,6 +139,9 @@ class ResultThread(QThread):
             if status:
                 ConfigManager.console_print(f"Audio callback status: {status}")
             audio_buffer.extend(indata[:, 0])
+            rms = float(np.sqrt(np.mean(indata.astype(np.float32) ** 2))) / 32768.0
+            log_level = (np.log10(max(rms, 1e-5)) + 5.0) / 5.0
+            self._last_level = float(np.clip(log_level, 0.0, 1.0))
             data_ready.set()
 
         with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype='int16',
@@ -145,6 +150,7 @@ class ResultThread(QThread):
             while self.is_running and self.is_recording:
                 data_ready.wait()
                 data_ready.clear()
+                self.audioLevelSignal.emit(self._last_level)
 
                 if len(audio_buffer) < frame_size:
                     continue

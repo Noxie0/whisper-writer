@@ -128,5 +128,17 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Configuration files
+# Configuration files (user-generated, not tracked)
 config.yaml
+src/config.yaml
+
+# Claude Code memory / project files
+.claude/
+
+# Windows thumbnails
+Thumbs.db
+desktop.ini
+
+# Editor directories
+.vscode/
+.idea/
