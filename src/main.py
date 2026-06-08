@@ -32,6 +32,12 @@ class WhisperWriterApp(QObject):
         super().__init__()
         self.app = QApplication(sys.argv)
         self.app.setWindowIcon(QIcon(_asset('ww-logo.png')))
+        self.key_listener = None
+        self.input_simulator = None
+        self.local_model = None
+        self.result_thread = None
+        self.main_window = None
+        self.status_window = None
 
         ConfigManager.initialize()
 
