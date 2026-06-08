@@ -8,6 +8,12 @@ from PyQt5.QtCore import QObject, QProcess
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QMessageBox
 
+_SRC_DIR  = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DIR = os.path.dirname(_SRC_DIR)
+
+def _asset(name):
+    return os.path.join(_ROOT_DIR, 'assets', name)
+
 from key_listener import KeyListener
 from result_thread import ResultThread
 from ui.main_window import MainWindow
@@ -25,7 +31,7 @@ class WhisperWriterApp(QObject):
         """
         super().__init__()
         self.app = QApplication(sys.argv)
-        self.app.setWindowIcon(QIcon(os.path.join('assets', 'ww-logo.png')))
+        self.app.setWindowIcon(QIcon(_asset('ww-logo.png')))
 
         ConfigManager.initialize()
 
@@ -68,7 +74,7 @@ class WhisperWriterApp(QObject):
         """
         Create the system tray icon and its context menu.
         """
-        self.tray_icon = QSystemTrayIcon(QIcon(os.path.join('assets', 'ww-logo.png')), self.app)
+        self.tray_icon = QSystemTrayIcon(QIcon(_asset('ww-logo.png')), self.app)
 
         tray_menu = QMenu()
 
@@ -110,7 +116,7 @@ class WhisperWriterApp(QObject):
         """
         If settings is closed without saving on first run, initialize the components with default values.
         """
-        if not os.path.exists(os.path.join('src', 'config.yaml')):
+        if not os.path.exists(os.path.join(_SRC_DIR, 'config.yaml')):
             QMessageBox.information(
                 self.settings_window,
                 'Using Default Values',
@@ -170,7 +176,7 @@ class WhisperWriterApp(QObject):
         self.input_simulator.typewrite(result)
 
         if ConfigManager.get_config_value('misc', 'noise_on_completion'):
-            AudioPlayer(os.path.join('assets', 'beep.wav')).play(block=True)
+            AudioPlayer(_asset('beep.wav')).play(block=True)
 
         if ConfigManager.get_config_value('recording_options', 'recording_mode') == 'continuous':
             self.start_result_thread()

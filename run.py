@@ -11,6 +11,8 @@ if os.path.isdir(_nvidia_dir):
         if os.path.isdir(_bin):
             os.environ['PATH'] = _bin + os.pathsep + os.environ.get('PATH', '')
 
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 print('Starting WhisperWriter...')
 load_dotenv()
-subprocess.run([sys.executable, os.path.join('src', 'main.py')])
+subprocess.run([sys.executable, os.path.join(_ROOT, 'src', 'main.py')], cwd=_ROOT)

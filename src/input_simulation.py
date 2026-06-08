@@ -48,7 +48,7 @@ class InputSimulator:
         Terminate the dotool process if it's running.
         """
         if self.dotool_process:
-            os.kill(self.dotool_process.pid, signal.SIGINT)
+            self.dotool_process.terminate()
             self.dotool_process = None
 
     def typewrite(self, text):
@@ -106,8 +106,9 @@ class InputSimulator:
             interval (float): The interval between keystrokes in seconds.
         """
         assert self.dotool_process and self.dotool_process.stdin
-        self.dotool_process.stdin.write(f"typedelay {interval * 1000}\n")
-        self.dotool_process.stdin.write(f"type {text}\n")
+        safe_text = text.replace('\n', ' ').replace('\r', '')
+        self.dotool_process.stdin.write(f"typedelay {int(interval * 1000)}\n")
+        self.dotool_process.stdin.write(f"type {safe_text}\n")
         self.dotool_process.stdin.flush()
 
     def cleanup(self):
